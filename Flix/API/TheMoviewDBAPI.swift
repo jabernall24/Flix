@@ -43,6 +43,35 @@ class TheMovieDBAPI {
         }
         task.resume()
     }
+    
+    static func nowPlayingSimilar(completion: @escaping (Result<[[String: Any]], Error>) -> ()) {
+        let url = URL(string: baseURLString + "movie/324857/similar?\(apiKey)")!
+        let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
+        let session = URLSession(configuration: .default, delegate: nil, delegateQueue: .main)
+        
+        let task = session.dataTask(with: request) { (data, response, error) in
+            // This will run when the network request returns
+            if let error = error {
+                completion(.failure(error))
+            } else if let data = data {
+                do {
+                    guard let dataDictionary = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+                        completion(.failure(TheMovieDBAPIError(.invalidConvertionFromDataToJson)))
+                        return
+                    }
+                    guard let result = dataDictionary["results"] as? [[String: Any]] else {
+                        completion(.failure(TheMovieDBAPIError(.fieldNotFound)))
+                        return
+                    }
+                    
+                    completion(.success(result))
+                } catch {
+                    completion(.failure(error))
+                }
+            }
+        }
+        task.resume()
+    }
 
 }
 

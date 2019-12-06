@@ -37,6 +37,16 @@ class NowPlayingController: UIViewController {
         }
     }
     
+    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
+        
+        if let movieDetailsController = segue.destination as? MovieDetailsController {
+            guard let cell = sender as? UITableViewCell else { return }
+            guard let indexPath = tableView.indexPath(for: cell) else { return }
+            
+            movieDetailsController.movie = movies[indexPath.row]
+        }
+    }
+    
 }
 
 // MARK: Table view
