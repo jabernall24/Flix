@@ -9,30 +9,44 @@
 import UIKit
 
 class NowPlayingController: UIViewController {
-
+    
     @IBOutlet var tableView: UITableView!
-    var movies: [[String: Any]] = []
+    var movies: [Movie] = []
+    
+    private var pageNumber = 1
+    private var isFinishedLoading = true
+    private var reachedBottom = false
+    
+    @IBOutlet var activityIndicator: UIActivityIndicatorView!
     
     override func viewDidLoad() {
         super.viewDidLoad()
-
+        
+        setUpTableView()
         loadNowPlayingMovies()
-        
-        tableView.delegate = self
-        tableView.dataSource = self
-        
-        tableView.rowHeight = UITableView.automaticDimension
-        tableView.estimatedRowHeight = 200
     }
-
+    
     func loadNowPlayingMovies() {
-        TheMovieDBAPI.nowPlaying { (result) in
+        if !isFinishedLoading || reachedBottom { return }
+        isFinishedLoading = false
+        activityIndicator.startAnimating()
+        
+        TheMovieDBAPI.shared.nowPlaying(page: pageNumber) { [weak self] result in
+            guard let self = self else { return }
+            self.isFinishedLoading = true
+            self.activityIndicator.stopAnimating()
+            
             switch result {
-            case .success(let data):
-                self.movies = data
+            case .success(let movies):
+                if movies.count == 0 {
+                    self.reachedBottom = true
+                    return
+                }
+                self.movies.append(contentsOf: movies)
+                self.pageNumber += 1
                 self.tableView.reloadData()
             case .failure(let error):
-                print(error.localizedDescription)
+                Alert.shared.showFlixErrorAlert(with: error, on: self)
             }
         }
     }
@@ -57,15 +71,30 @@ extension NowPlayingController: UITableViewDelegate, UITableViewDataSource {
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "MovieCell", for: indexPath) as! MovieCell
-        let movie = movies[indexPath.row]
-        let url = URL(string: "https://image.tmdb.org/t/p/w500" + (movie["poster_path"] as! String))!
-        
-        cell.moviePostImageView.downloaded(from: url)
-        cell.titleLabel.text = movie["title"] as? String
-        cell.overviewLabel.text = movie["overview"] as? String
-        
+        cell.movie = movies[indexPath.row]
         return cell
     }
     
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+    }
     
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        let height = scrollView.frame.size.height
+        let contentOffsetY = scrollView.contentOffset.y
+        let distanceFromBottom = scrollView.contentSize.height - contentOffsetY
+        
+        if distanceFromBottom < height {
+            loadNowPlayingMovies()
+        }
+    }
+}
+
+// MARK: Set Up
+extension NowPlayingController {
+    
+    private func setUpTableView() {
+        tableView.delegate = self
+        tableView.dataSource = self
+    }
 }

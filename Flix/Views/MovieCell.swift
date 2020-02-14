@@ -14,4 +14,11 @@ class MovieCell: UITableViewCell {
     @IBOutlet var titleLabel: UILabel!
     @IBOutlet var overviewLabel: UILabel!
 
+    var movie: Movie! {
+        didSet {
+            moviePostImageView.downloaded(from: movie.getPosterPathUrlString())
+            titleLabel.text = movie.title
+            overviewLabel.text = movie.overview
+        }
+    }
 }

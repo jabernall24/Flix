@@ -12,10 +12,9 @@ class PosterCell: UICollectionViewCell {
 
     @IBOutlet var posterImageView: UIImageView!
     
-    override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
-        setNeedsLayout()
-        layoutIfNeeded()
-        
-        return layoutAttributes
+    var movie: Movie! {
+        didSet {
+            posterImageView.downloaded(from: movie.getPosterPathUrlString())
+        }
     }
 }

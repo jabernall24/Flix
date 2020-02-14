@@ -10,33 +10,47 @@ import Foundation
 
 class TheMovieDBAPI {
     
-    static private let baseURLString = "https://api.themoviedb.org/3/"
-    static private let apiKey = "api_key=a07e22bc18f5cb106bfe4cc1f83ad8ed"
+    static let shared = TheMovieDBAPI()
     
-    static func nowPlaying(completion: @escaping(Result<[[String: Any]], Error>) -> ()) {
-        guard let url = URL(string: baseURLString + "movie/now_playing?" + apiKey) else { return }
+    private init() {}
+
+    private let baseURLString = "https://api.themoviedb.org/3/"
+    private let apiKey = "api_key=a07e22bc18f5cb106bfe4cc1f83ad8ed"
+    
+    func nowPlaying(page: Int, completion: @escaping(Result<[Movie], FlixError>) -> ()) {
+        guard let url = URL(string: "\(baseURLString)movie/now_playing?\(apiKey)&page=\(page)") else {
+            completion(.failure(.invalidUrl))
+            return
+        }
         
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
         let session = URLSession(configuration: .default, delegate: nil, delegateQueue: .main)
         
         let task = session.dataTask(with: request) { (data, response, error) in
-           // This will run when the network request returns
-            if let error = error {
-                completion(.failure(error))
+            if let _ = error {
+                completion(.failure(.unableToComplete))
+            } else if let response = response as? HTTPURLResponse, response.statusCode != 200 {
+                completion(.failure(.invalidResponse))
             } else if let data = data {
                 do {
                     guard let dataDictionary = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
-                        completion(.failure(TheMovieDBAPIError(.invalidConvertionFromDataToJson)))
+                        completion(.failure(.invalidData))
                         return
                     }
                     guard let result = dataDictionary["results"] as? [[String: Any]] else {
-                        completion(.failure(TheMovieDBAPIError(.fieldNotFound)))
+                        completion(.failure(.invalidData))
                         return
                     }
                     
-                    completion(.success(result))
+                    let resultData = try JSONSerialization.data(withJSONObject: result, options: [])
+                    
+                    let decoder = JSONDecoder()
+                    decoder.keyDecodingStrategy = .convertFromSnakeCase
+                    let movies = try decoder.decode([Movie].self, from: resultData)
+                    
+                    completion(.success(movies))
                 } catch {
-                    completion(.failure(error))
+                    completion(.failure(.invalidData))
                 }
             }
 
@@ -44,29 +58,76 @@ class TheMovieDBAPI {
         task.resume()
     }
     
-    static func nowPlayingSimilar(completion: @escaping (Result<[[String: Any]], Error>) -> ()) {
-        let url = URL(string: baseURLString + "movie/324857/similar?\(apiKey)")!
+    func nowPlayingSimilar(for movieId: Int, page: Int, completion: @escaping (Result<[Movie], FlixError>) -> ()) {
+        guard let url = URL(string: "\(baseURLString)movie/\(movieId)/similar?\(apiKey)&page=\(page)") else {
+            completion(.failure(.invalidUrl))
+            return
+        }
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
         let session = URLSession(configuration: .default, delegate: nil, delegateQueue: .main)
         
         let task = session.dataTask(with: request) { (data, response, error) in
-            // This will run when the network request returns
-            if let error = error {
-                completion(.failure(error))
+            if let _ = error {
+                completion(.failure(.unableToComplete))
+            } else if let response = response as? HTTPURLResponse, response.statusCode != 200 {
+                completion(.failure(.invalidResponse))
             } else if let data = data {
                 do {
                     guard let dataDictionary = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
-                        completion(.failure(TheMovieDBAPIError(.invalidConvertionFromDataToJson)))
+                        completion(.failure(.invalidData))
                         return
                     }
                     guard let result = dataDictionary["results"] as? [[String: Any]] else {
-                        completion(.failure(TheMovieDBAPIError(.fieldNotFound)))
+                        completion(.failure(.invalidData))
                         return
                     }
                     
-                    completion(.success(result))
+                    let resultData = try JSONSerialization.data(withJSONObject: result, options: [])
+                    
+                    let decoder = JSONDecoder()
+                    decoder.keyDecodingStrategy = .convertFromSnakeCase
+                    let movies = try decoder.decode([Movie].self, from: resultData)
+                    
+                    completion(.success(movies))
                 } catch {
-                    completion(.failure(error))
+                    completion(.failure(.invalidData))
+                }
+            }
+        }
+        task.resume()
+    }
+
+    func getReviewsFor(movie movieId: Int, page: Int, completion: @escaping (Result<[Review], FlixError>) -> ()) {
+        guard let url = URL(string: "\(baseURLString)movie/\(movieId)/reviews?\(apiKey)&page=\(page)") else {
+            completion(.failure(.invalidUrl))
+            return
+        }
+        let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
+        let session = URLSession(configuration: .default, delegate: nil, delegateQueue: .main)
+        
+        let task = session.dataTask(with: request) { (data, response, error) in
+            if let _ = error {
+                completion(.failure(.unableToComplete))
+            } else if let response = response as? HTTPURLResponse, response.statusCode != 200 {
+                completion(.failure(.invalidResponse))
+            } else if let data = data {
+                do {
+                    guard let dataDictionary = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+                        completion(.failure(.invalidData))
+                        return
+                    }
+                    guard let result = dataDictionary["results"] as? [[String: Any]] else {
+                        completion(.failure(.invalidData))
+                        return
+                    }
+                    
+                    let resultData = try JSONSerialization.data(withJSONObject: result, options: [])
+                    
+                    let reviews = try JSONDecoder().decode([Review].self, from: resultData)
+                    
+                    completion(.success(reviews))
+                } catch {
+                    completion(.failure(.invalidData))
                 }
             }
         }
@@ -74,29 +135,3 @@ class TheMovieDBAPI {
     }
 
 }
-
-
-class TheMovieDBAPIError: NSObject, LocalizedError {
-    var desc = ""
-    init(_ option: options) {
-        desc = option.rawValue
-    }
-    
-    override var description: String {
-        get {
-            return "Error: \(desc)"
-        }
-    }
-    
-    var errorDescription: String? {
-        get {
-            return self.description
-        }
-    }
-    
-    enum options: String {
-        case invalidConvertionFromDataToJson = "Attempted to convert data to json"
-        case fieldNotFound = "Attempted to get a field in dictionary that is not present"
-    }
-}
-
